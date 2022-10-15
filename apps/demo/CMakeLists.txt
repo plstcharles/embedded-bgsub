@@ -1,4 +1,6 @@
 
+include_directories(${OpenCV_INCLUDE_DIRS})
+
 add_executable(
     embedded_bgsub_demo
         "src/demo_main.cpp"
