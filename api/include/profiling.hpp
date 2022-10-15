@@ -30,7 +30,7 @@ inline double initFrequency() {
 inline double getAbsoluteTime() {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
-    return now.tc_sec + now.tv_nsec * 0.000000001;
+    return now.tv_sec + now.tv_nsec * 0.000000001;
 }
 
 #endif
