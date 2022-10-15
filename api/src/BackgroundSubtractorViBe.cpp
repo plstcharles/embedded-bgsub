@@ -18,6 +18,7 @@
 #include "BackgroundSubtractorViBe.hpp"
 #include "vibeUtils.hpp"
 
+// Test for a faster random generator
 static uint64_t mcg_state = 0xcafef00dd15ea5e5u;	// Must be odd
 
 static uint64_t       state      = 0x4d595df4d0f33173;		// Or something seed-dependent
@@ -39,13 +40,15 @@ void pcg32_fast_init(uint64_t seed)
 	mcg_state = 2*seed + 1;
 	(void)pcg32_fast();
 }
+///////////////////////////////////////
 
 BackgroundSubtractorViBe::BackgroundSubtractorViBe(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples) :
 	m_nBGSamples(nBGSamples),
 	m_nRequiredBGSamples(nRequiredBGSamples),
 	m_voBGImg(nBGSamples),
 	m_nColorDistThreshold(nColorDistThreshold),
-	m_bInitialized(false) {
+	m_bInitialized(false),
+	m_nColorDistThresholdSquared(nColorDistThreshold * nColorDistThreshold) {
 }
 
 BackgroundSubtractorViBe::~BackgroundSubtractorViBe() {}
@@ -135,7 +138,7 @@ void BackgroundSubtractorViBe_3ch::initialize(const cv::Mat& oInitImg) {
 		m_voBGImg[s] = cv::Scalar(0, 0, 0);
 		for (int y_orig = 0; y_orig < m_oImgSize.height; y_orig++) {
 			for (int x_orig = 0; x_orig < m_oImgSize.width; x_orig++) {
-				lv::getSamplePosition_7x7_std2(rand(), x_sample, y_sample, x_orig, y_orig, 0, m_oImgSize);
+				lv::getSamplePosition_7x7_std2(pcg32_fast(), x_sample, y_sample, x_orig, y_orig, 0, m_oImgSize);
 				m_voBGImg[s].at<cv::Vec3b>(y_orig, x_orig) = oInitImgRGB.at<cv::Vec3b>(y_sample, x_sample);
 			}
 		}
@@ -143,26 +146,27 @@ void BackgroundSubtractorViBe_3ch::initialize(const cv::Mat& oInitImg) {
 	m_bInitialized = true;
 }
 
-inline float L2dist3(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
+// First version, removing template
+inline double L2dist3(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
 	ushort tResult = 0;
 	for (size_t c = 0; c < 3; ++c) {
 		const short subAB = short(a[c]) - short(b[c]);
 		tResult += (ushort)(subAB * subAB);
 	}
-	return (float)std::sqrt(tResult);
+	//return (double)tResult;
+	return std::sqrt(tResult);
+}
+
+// Second version, not doing square root
+inline size_t L2dist3Squared(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
+	const size_t r0 = a[0] - b[0];
+	const size_t r1 = a[1] - b[1];
+	const size_t r2 = a[2] - b[2];
+	return (r0 * r0) + (r1 * r1) + (r2 * r2);
 }
 
 void BackgroundSubtractorViBe_3ch::apply(cv::InputArray _image, cv::OutputArray _fgmask, double learningRate) {
 	cv::Mat oInputImgRGB = _image.getMat();
-	// cv::Mat oInputImg = _image.getMat();
-	//cv::Mat oInputImgRGB;
-
-	// Make sure the image is correct to not need to convert
-	// if (oInputImg.type() == CV_8UC3)
-	// 	oInputImgRGB = oInputImg;
-	// else
-	// 	cv::cvtColor(oInputImg, oInputImgRGB, cv::COLOR_GRAY2BGR);
-
 	//_fgmask.create(m_oImgSize, CV_8UC1); // Create before
 
 	cv::Mat oFGMask = _fgmask.getMat();
@@ -187,7 +191,8 @@ void BackgroundSubtractorViBe_3ch::apply(cv::InputArray _image, cv::OutputArray 
 				if (lv::L1dist(in, bg) < m_nColorDistThreshold * 3)
 #else //(!BGSVIBE_USE_L1_DISTANCE_CHECK)
 				//if (lv::L2dist(in, bg) < m_nColorDistThreshold * 3)
-				if (L2dist3(in, bg) < m_nColorDistThreshold * 3)
+				//if (L2dist3(in, bg) < m_nColorDistThreshold * 3)
+				if (L2dist3Squared(in, bg) < m_nColorDistThresholdSquared * 3)
 #endif //(!BGSVIBE_USE_L1_DISTANCE_CHECK)
 					nGoodSamplesCount++;
 #if BGSVIBE_USE_SC_THRS_VALIDATION
@@ -206,15 +211,6 @@ void BackgroundSubtractorViBe_3ch::apply(cv::InputArray _image, cv::OutputArray 
 					const size_t s_rand = pcg32_fast() % m_nBGSamples;
 					m_voBGImg[s_rand].at<cv::Vec3b>(y_rand, x_rand) = oInputImgRGB.at<cv::Vec3b>(y, x);
 				}
-
-				// if ((rand() % nLearningRate) == 0)
-				// 	m_voBGImg[rand() % m_nBGSamples].at<cv::Vec3b>(y, x) = oInputImgRGB.at<cv::Vec3b>(y, x);
-				// if ((rand() % nLearningRate) == 0) {
-				// 	int x_rand, y_rand;
-				// 	lv::getNeighborPosition_3x3(rand(), x_rand, y_rand, x, y, 0, m_oImgSize);
-				// 	const size_t s_rand = rand() % m_nBGSamples;
-				// 	m_voBGImg[s_rand].at<cv::Vec3b>(y_rand, x_rand) = oInputImgRGB.at<cv::Vec3b>(y, x);
-				// }
 			}
 		}
 	}

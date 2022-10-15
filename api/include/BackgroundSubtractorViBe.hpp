@@ -80,6 +80,7 @@ protected:
     cv::Size m_oImgSize;
     /// absolute color distance threshold ('R' or 'radius' in the original ViBe paper)
     const size_t m_nColorDistThreshold;
+    const size_t m_nColorDistThresholdSquared;
     /// defines whether or not the subtractor is fully initialized
     bool m_bInitialized;
 };
