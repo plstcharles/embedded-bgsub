@@ -59,7 +59,9 @@ int main(int argc, const char** argv) {
 
     while (true) {
         cap >> frame;
-        //cv::cvtColor(frame, hsv, COLOR_BGR2GRAY);
+        if (frame.type() != CV_8UC3)
+            std::cout << "WARNING: Will convert image\n";
+
         if (frame.empty()) {
             break;
         }
@@ -67,7 +69,7 @@ int main(int argc, const char** argv) {
         {
             vibe.initialize(frame);
             vibeInit = false;
-            frame.copyTo(vibeMask);
+            vibeMask.create(frame.size(), CV_8UC1);
         } else {
             double startTime = getAbsoluteTime();
             vibe.apply(frame, vibeMask, learningRate);
@@ -78,8 +80,8 @@ int main(int argc, const char** argv) {
             if (numFrames % 100 == 0) {
                 std::cout << "Framerate: " << (numFrames / totalTime) << "fps\n";
             }
+            cv::imshow("CamShift Demo", vibeMask);
         }
-        cv::imshow("CamShift Demo", vibeMask);
 
         char c = (char)cv::waitKey(10);
         if (c == 27) {

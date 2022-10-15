@@ -18,6 +18,28 @@
 #include "BackgroundSubtractorViBe.hpp"
 #include "vibeUtils.hpp"
 
+static uint64_t mcg_state = 0xcafef00dd15ea5e5u;	// Must be odd
+
+static uint64_t       state      = 0x4d595df4d0f33173;		// Or something seed-dependent
+static uint64_t const multiplier = 6364136223846793005u;
+static uint64_t const increment  = 1442695040888963407u;	// Or an arbitrary odd constant
+
+uint32_t pcg32_fast(void)
+{
+	uint64_t x = mcg_state;
+	unsigned count = (unsigned)(x >> 61);	// 61 = 64 - 3
+
+	mcg_state = x * multiplier;
+	x ^= x >> 22;
+	return (uint32_t)(x >> (22 + count));	// 22 = 32 - 3 - 7
+}
+
+void pcg32_fast_init(uint64_t seed)
+{
+	mcg_state = 2*seed + 1;
+	(void)pcg32_fast();
+}
+
 BackgroundSubtractorViBe::BackgroundSubtractorViBe(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples) :
 	m_nBGSamples(nBGSamples),
 	m_nRequiredBGSamples(nRequiredBGSamples),
@@ -121,17 +143,32 @@ void BackgroundSubtractorViBe_3ch::initialize(const cv::Mat& oInitImg) {
 	m_bInitialized = true;
 }
 
+inline float L2dist3(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
+	ushort tResult = 0;
+	for (size_t c = 0; c < 3; ++c) {
+		const short subAB = short(a[c]) - short(b[c]);
+		tResult += (ushort)(subAB * subAB);
+	}
+	return (float)std::sqrt(tResult);
+}
+
 void BackgroundSubtractorViBe_3ch::apply(cv::InputArray _image, cv::OutputArray _fgmask, double learningRate) {
-	cv::Mat oInputImg = _image.getMat();
-	cv::Mat oInputImgRGB;
-	if (oInputImg.type() == CV_8UC3)
-		oInputImgRGB = oInputImg;
-	else
-		cv::cvtColor(oInputImg, oInputImgRGB, cv::COLOR_GRAY2BGR);
-	_fgmask.create(m_oImgSize, CV_8UC1);
+	cv::Mat oInputImgRGB = _image.getMat();
+	// cv::Mat oInputImg = _image.getMat();
+	//cv::Mat oInputImgRGB;
+
+	// Make sure the image is correct to not need to convert
+	// if (oInputImg.type() == CV_8UC3)
+	// 	oInputImgRGB = oInputImg;
+	// else
+	// 	cv::cvtColor(oInputImg, oInputImgRGB, cv::COLOR_GRAY2BGR);
+
+	//_fgmask.create(m_oImgSize, CV_8UC1); // Create before
+
 	cv::Mat oFGMask = _fgmask.getMat();
 	oFGMask = cv::Scalar_<uchar>(0);
 	const size_t nLearningRate = (size_t)ceil(learningRate);
+
 	for (int y = 0; y < m_oImgSize.height; y++) {
 		for (int x = 0; x < m_oImgSize.width; x++) {
 #if BGSVIBE_USE_SC_THRS_VALIDATION
@@ -149,7 +186,8 @@ void BackgroundSubtractorViBe_3ch::apply(cv::InputArray _image, cv::OutputArray 
 #if BGSVIBE_USE_L1_DISTANCE_CHECK
 				if (lv::L1dist(in, bg) < m_nColorDistThreshold * 3)
 #else //(!BGSVIBE_USE_L1_DISTANCE_CHECK)
-				if (lv::L2dist(in, bg) < m_nColorDistThreshold * 3)
+				//if (lv::L2dist(in, bg) < m_nColorDistThreshold * 3)
+				if (L2dist3(in, bg) < m_nColorDistThreshold * 3)
 #endif //(!BGSVIBE_USE_L1_DISTANCE_CHECK)
 					nGoodSamplesCount++;
 #if BGSVIBE_USE_SC_THRS_VALIDATION
@@ -160,14 +198,23 @@ void BackgroundSubtractorViBe_3ch::apply(cv::InputArray _image, cv::OutputArray 
 			if (nGoodSamplesCount < m_nRequiredBGSamples)
 				oFGMask.at<uchar>(y, x) = UCHAR_MAX;
 			else {
-				if ((rand() % nLearningRate) == 0)
-					m_voBGImg[rand() % m_nBGSamples].at<cv::Vec3b>(y, x) = oInputImgRGB.at<cv::Vec3b>(y, x);
-				if ((rand() % nLearningRate) == 0) {
+				if ((pcg32_fast() % nLearningRate) == 0)
+					m_voBGImg[pcg32_fast() % m_nBGSamples].at<cv::Vec3b>(y, x) = oInputImgRGB.at<cv::Vec3b>(y, x);
+				if ((pcg32_fast() % nLearningRate) == 0) {
 					int x_rand, y_rand;
-					lv::getNeighborPosition_3x3(rand(), x_rand, y_rand, x, y, 0, m_oImgSize);
-					const size_t s_rand = rand() % m_nBGSamples;
+					lv::getNeighborPosition_3x3(pcg32_fast(), x_rand, y_rand, x, y, 0, m_oImgSize);
+					const size_t s_rand = pcg32_fast() % m_nBGSamples;
 					m_voBGImg[s_rand].at<cv::Vec3b>(y_rand, x_rand) = oInputImgRGB.at<cv::Vec3b>(y, x);
 				}
+
+				// if ((rand() % nLearningRate) == 0)
+				// 	m_voBGImg[rand() % m_nBGSamples].at<cv::Vec3b>(y, x) = oInputImgRGB.at<cv::Vec3b>(y, x);
+				// if ((rand() % nLearningRate) == 0) {
+				// 	int x_rand, y_rand;
+				// 	lv::getNeighborPosition_3x3(rand(), x_rand, y_rand, x, y, 0, m_oImgSize);
+				// 	const size_t s_rand = rand() % m_nBGSamples;
+				// 	m_voBGImg[s_rand].at<cv::Vec3b>(y_rand, x_rand) = oInputImgRGB.at<cv::Vec3b>(y, x);
+				// }
 			}
 		}
 	}

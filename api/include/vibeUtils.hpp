@@ -1,5 +1,8 @@
 #pragma once
 
+#include <iostream>
+#include <typeinfo>
+
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -72,7 +75,7 @@ namespace lv {
 		const int nRandIdx, int& nNeighborCoord_X, int& nNeighborCoord_Y,
 		const int nOrigCoord_X, const int nOrigCoord_Y,
 		const int nBorderSize, const cv::Size& oImageSize) {
-		static_assert(nNeighborCount > 0, "invalid input neighbor pattern array size");
+		//static_assert(nNeighborCount > 0, "invalid input neighbor pattern array size");
 		const int r = nRandIdx % nNeighborCount;
 		nNeighborCoord_X = nOrigCoord_X + anNeighborPattern[r][0];
 		nNeighborCoord_Y = nOrigCoord_Y + anNeighborPattern[r][1];
@@ -96,6 +99,7 @@ namespace lv {
 	template<typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
 	inline auto L2sqrdist(T a, T b) {
 		typedef std::make_signed_t<typename lv::get_bigger_integer<T>::type> Tintern;
+		//std::cout << "T: " << typeid(T).name() << ", Tintern: " << typeid(Tintern).name() << "\n";
 		const Tintern tResult = Tintern(a) - Tintern(b);
 		return std::make_unsigned_t<Tintern>(tResult * tResult);
 	}
@@ -110,19 +114,32 @@ namespace lv {
 	template<size_t nChannels, typename Tin, typename Tout = float, typename = std::enable_if_t<std::is_integral<Tin>::value>>
 	inline Tout L2dist(const Tin* a, const Tin* b) {
 		decltype(L2sqrdist(Tin(), Tin())) tResult = 0;
+		//std::cout << "Tin: " << typeid(Tin).name() << ", TResult: " << typeid(tResult).name() << "\n";
 		for (size_t c = 0; c < nChannels; ++c)
 			tResult += L2sqrdist(a[c], b[c]);
 		return (Tout)std::sqrt(tResult);
 	}
 
-	/// computes the L2 distance between two opencv vectors
-	template<int nChannels, typename Tin, typename Tout = decltype(L2dist<nChannels>((Tin*)0, (Tin*)0))>
-	inline Tout L2dist(const cv::Vec<Tin, nChannels>& a, const cv::Vec<Tin, nChannels>& b) {
-		Tin a_array[nChannels], b_array[nChannels];
-		for (int c = 0; c < nChannels; ++c) {
-			a_array[c] = a[c];
-			b_array[c] = b[c];
-		}
-		return (Tout)L2dist<nChannels>(a_array, b_array);
-	}
+	// /// computes the L2 distance between two opencv vectors
+	// // Modified
+	// template<int nChannels, typename Tin, typename Tout = decltype(L2dist<nChannels>((Tin*)0, (Tin*)0))>
+	// inline Tout L2dist(const cv::Vec<Tin, nChannels>& a, const cv::Vec<Tin, nChannels>& b) {
+	// 	//std::cout << "Tout: " << typeid(Tout).name() << "\n";
+	// 	decltype(L2sqrdist(Tin(), Tin())) tResult = 0;
+	// 	for (size_t c = 0; c < nChannels; ++c)
+	// 		tResult += (ushort)(short(a[c]) - short(b[c]));
+	// 		//tResult += L2sqrdist(a[c], b[c]);
+	// 	return (Tout)std::sqrt(tResult);
+	// }
+
+	// /// computes the L2 distance between two opencv vectors
+	// template<int nChannels, typename Tin, typename Tout = decltype(L2dist<nChannels>((Tin*)0, (Tin*)0))>
+	// inline Tout L2dist(const cv::Vec<Tin, nChannels>& a, const cv::Vec<Tin, nChannels>& b) {
+	// 	Tin a_array[nChannels], b_array[nChannels];
+	// 	for (int c = 0; c < nChannels; ++c) {
+	// 		a_array[c] = a[c];
+	// 		b_array[c] = b[c];
+	// 	}
+	// 	return (Tout)L2dist<nChannels>(a_array, b_array);
+	// }
 }
