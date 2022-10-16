@@ -20,16 +20,20 @@
 
 #include <execution>
 
-BackgroundSubtractorViBe::BackgroundSubtractorViBe(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples) :
+BackgroundSubtractorViBe::BackgroundSubtractorViBe(size_t nColorDistThreshold, 
+		size_t nBGSamples, 
+		size_t nRequiredBGSamples,
+        size_t learningRate) :
 	m_nBGSamples(nBGSamples),
 	m_nRequiredBGSamples(nRequiredBGSamples),
 	m_voBGImg(nBGSamples),
 	m_nColorDistThreshold(nColorDistThreshold),
+	m_learningRate(learningRate),
 	m_bInitialized(false) {}
 
 BackgroundSubtractorViBe::~BackgroundSubtractorViBe() {}
 
-void BackgroundSubtractorViBe::getBackgroundImage(cv::OutputArray backgroundImage) const {
+void BackgroundSubtractorViBe::getBackgroundImage(cv::Mat& backgroundImage) const {
 	cv::Mat oAvgBGImg = cv::Mat::zeros(m_oImgSize, CV_32FC(m_voBGImg[0].channels()));
 	for (size_t n = 0; n < m_nBGSamples; ++n) {
 		for (int y = 0; y < m_oImgSize.height; ++y) {
@@ -46,8 +50,8 @@ void BackgroundSubtractorViBe::getBackgroundImage(cv::OutputArray backgroundImag
 	oAvgBGImg.convertTo(backgroundImage, CV_8U);
 }
 
-BackgroundSubtractorViBe_1ch::BackgroundSubtractorViBe_1ch(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples) :
-	BackgroundSubtractorViBe(nColorDistThreshold, nBGSamples, nRequiredBGSamples) {}
+BackgroundSubtractorViBe_1ch::BackgroundSubtractorViBe_1ch(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples, size_t learningRate) :
+	BackgroundSubtractorViBe(nColorDistThreshold, nBGSamples, nRequiredBGSamples, learningRate) {}
 
 BackgroundSubtractorViBe_1ch::~BackgroundSubtractorViBe_1ch() {}
 
@@ -67,37 +71,33 @@ void BackgroundSubtractorViBe_1ch::initialize(const cv::Mat& oInitImg) {
 	m_bInitialized = true;
 }
 
-void BackgroundSubtractorViBe_1ch::apply(cv::InputArray _image, cv::OutputArray _fgmask, double learningRate) {
-	cv::Mat oInputImg = _image.getMat();
-	_fgmask.create(m_oImgSize, CV_8UC1);
-	cv::Mat oFGMask = _fgmask.getMat();
-	oFGMask = cv::Scalar_<uchar>(0);
-	const size_t nLearningRate = (size_t)ceil(learningRate);
+void BackgroundSubtractorViBe_1ch::apply(const cv::Mat& _image, cv::Mat& _fgmask) {
+	_fgmask = cv::Scalar_<uchar>(0);
 	for (int y = 0; y < m_oImgSize.height; y++) {
 		for (int x = 0; x < m_oImgSize.width; x++) {
 			size_t nGoodSamplesCount = 0, nSampleIdx = 0;
 			while (nGoodSamplesCount < m_nRequiredBGSamples && nSampleIdx < m_nBGSamples) {
-				if (lv::L1dist(oInputImg.at<uchar>(y, x), m_voBGImg[nSampleIdx].at<uchar>(y, x)) < m_nColorDistThreshold)
+				if (lv::L1dist(_image.at<uchar>(y, x), m_voBGImg[nSampleIdx].at<uchar>(y, x)) < m_nColorDistThreshold)
 					nGoodSamplesCount++;
 				nSampleIdx++;
 			}
 			if (nGoodSamplesCount < m_nRequiredBGSamples)
-				oFGMask.at<uchar>(y, x) = UCHAR_MAX;
+				_fgmask.at<uchar>(y, x) = UCHAR_MAX;
 			else {
-				if ((Pcg32::fast() % nLearningRate) == 0)
-					m_voBGImg[Pcg32::fast() % m_nBGSamples].at<uchar>(y, x) = oInputImg.at<uchar>(y, x);
-				if ((Pcg32::fast() % nLearningRate) == 0) {
+				if ((Pcg32::fast() % m_learningRate) == 0)
+					m_voBGImg[Pcg32::fast() % m_nBGSamples].at<uchar>(y, x) = _image.at<uchar>(y, x);
+				if ((Pcg32::fast() % m_learningRate) == 0) {
 					int x_rand, y_rand;
 					getNeighborPosition_3x3(x_rand, y_rand, x, y, m_oImgSize);
-					m_voBGImg[Pcg32::fast() % m_nBGSamples].at<uchar>(y_rand, x_rand) = oInputImg.at<uchar>(y, x);
+					m_voBGImg[Pcg32::fast() % m_nBGSamples].at<uchar>(y_rand, x_rand) = _image.at<uchar>(y, x);
 				}
 			}
 		}
 	}
 }
 
-BackgroundSubtractorViBe_3ch::BackgroundSubtractorViBe_3ch(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples) :
-	BackgroundSubtractorViBe(nColorDistThreshold, nBGSamples, nRequiredBGSamples),
+BackgroundSubtractorViBe_3ch::BackgroundSubtractorViBe_3ch(size_t nColorDistThreshold, size_t nBGSamples, size_t nRequiredBGSamples, size_t learningRate) :
+	BackgroundSubtractorViBe(nColorDistThreshold, nBGSamples, nRequiredBGSamples, learningRate),
 	m_nColorDistThresholdSquared((nColorDistThreshold * 3) * (nColorDistThreshold * 3)) {}
 
 BackgroundSubtractorViBe_3ch::~BackgroundSubtractorViBe_3ch() {}
@@ -118,75 +118,37 @@ void BackgroundSubtractorViBe_3ch::initialize(const cv::Mat& oInitImgRGB) {
 	m_bInitialized = true;
 }
 
-void BackgroundSubtractorViBe_3ch::apply(const cv::InputArray _image, cv::OutputArray _fgmask, double learningRate) {
-	cv::Mat oInputImgRGB = _image.getMat();
-	cv::Mat oFGMask = _fgmask.getMat();
-
-	applyCmp(oInputImgRGB, m_voBGImg, oFGMask, learningRate);
-
-	// oFGMask = cv::Scalar_<uchar>(0);
-
-	// const size_t nLearningRate = (size_t)ceil(learningRate);
-
-	// for (int y = 0; y < m_oImgSize.height; ++y) {
-	// 	for (int x = 0; x < m_oImgSize.width; ++x) {
-	// 		size_t nGoodSamplesCount = 0, nSampleIdx = 0;
-	// 		while (nGoodSamplesCount < m_nRequiredBGSamples && nSampleIdx < m_nBGSamples) {
-	// 			const cv::Vec3b& in = oInputImgRGB.at<cv::Vec3b>(y, x);
-	// 			const cv::Vec3b& bg = m_voBGImg[nSampleIdx].at<cv::Vec3b>(y, x);
-	// 			//if (lv::L2dist(in, bg) < m_nColorDistThreshold * 3)
-	// 			if (L2dist3Squared(in, bg) < m_nColorDistThresholdSquared)
-	// 				nGoodSamplesCount++;
-	// 			nSampleIdx++;
-	// 		}
-	// 		if (nGoodSamplesCount < m_nRequiredBGSamples)
-	// 			oFGMask.at<uchar>(y, x) = UCHAR_MAX;
-	// 		else {
-	// 			if ((Pcg32::fast() % nLearningRate) == 0)
-	// 				m_voBGImg[Pcg32::fast() % m_nBGSamples].at<cv::Vec3b>(y, x) = oInputImgRGB.at<cv::Vec3b>(y, x);
-	// 			if ((Pcg32::fast() % nLearningRate) == 0) {
-	// 				int x_rand, y_rand;
-	// 				getNeighborPosition_3x3(x_rand, y_rand, x, y, m_oImgSize);
-	// 				const size_t s_rand = Pcg32::fast() % m_nBGSamples;
-	// 				m_voBGImg[s_rand].at<cv::Vec3b>(y_rand, x_rand) = oInputImgRGB.at<cv::Vec3b>(y, x);
-	// 			}
-	// 		}
-	// 	}
-	// }
+void BackgroundSubtractorViBe_3ch::apply(const cv::Mat& _image, cv::Mat& _fgmask) {
+	applyCmp(_image, m_voBGImg, _fgmask);
 }
 
-void BackgroundSubtractorViBe_3ch::splitImages(const cv::Mat& inputImg, std::vector<cv::Mat>& outputImages, int numSlices) {
-	outputImages.resize(numSlices);
+void BackgroundSubtractorViBe_3ch::splitImages(const cv::Mat& inputImg, std::vector<cv::Mat>& outputImages) {
+	outputImages.resize(m_numProcessesParallel);
 	int y = 0;
-	int h = m_oImgSize.height / numSlices;
-	for (int i = 0; i < numSlices; ++i) {
-		if (i == (numSlices - 1)) {
+	int h = m_oImgSize.height / m_numProcessesParallel;
+	for (int i = 0; i < m_numProcessesParallel; ++i) {
+		if (i == (m_numProcessesParallel - 1)) {
 			h = m_oImgSize.height - y;
 		}
 		outputImages[i] = inputImg(cv::Rect(0, y, m_oImgSize.width, h));
 		y += h;
-		//std::cout << "h[" << i << "] = " << h << std::endl;
-		//std::cout << outputImages[i].size() << std::endl;
 	}
 }
 
-void BackgroundSubtractorViBe_3ch::joinImages(std::vector<cv::Mat>& inputImages, cv::Mat& outputImg) {
-	int y = 0;
+void BackgroundSubtractorViBe_3ch::joinImages(const std::vector<cv::Mat>& inputImages, cv::Mat& outputImg) {
 	for (int i = 0; i < inputImages.size(); ++i) {
-		int h = inputImages[i].size().height;
-		inputImages[i].copyTo(outputImg(cv::Rect(0, y, m_oImgSize.width, h)));
-		y += h;
+		inputImages[i].copyTo(outputImg(m_rectImgs[i]));
 	}
 }
 
-void BackgroundSubtractorViBe_3ch::initializeParallel(const cv::Mat& initImgRGB, int numProcesses) {
+void BackgroundSubtractorViBe_3ch::initializeParallel(const cv::Mat& initImgRGB, const int numProcesses) {
 	m_numProcessesParallel = numProcesses;
 	m_oImgSize = initImgRGB.size();
 
 	m_processSeq.resize(numProcesses);
 
 	std::vector<cv::Mat> imgsSplit;
-	splitImages(initImgRGB, imgsSplit, numProcesses);
+	splitImages(initImgRGB, imgsSplit);
 	m_voBGImgParallel.resize(numProcesses);
 
 	m_rectImgs.resize(m_numProcessesParallel);
@@ -227,51 +189,44 @@ void BackgroundSubtractorViBe_3ch::initializeParallel(const cv::Mat& initImgRGB,
 	m_bInitialized = true;
 }
 
-void BackgroundSubtractorViBe_3ch::applyParallel(const cv::InputArray image, cv::OutputArray fgmask, double learningRate) {
-	cv::Mat inputImgRGB = image.getMat();
-	cv::Mat oFGMask = fgmask.getMat();
-	
+void BackgroundSubtractorViBe_3ch::applyParallel(const cv::Mat& image, cv::Mat& fgmask) {
 	std::for_each(
 		std::execution::par,
 		m_processSeq.begin(),
 		m_processSeq.end(),
 		[&](int np)
 		{
-			const cv::Mat iImg = inputImgRGB(m_rectImgs[np]);
-			applyCmp(iImg, m_voBGImgParallel[np], m_outSplit[np], learningRate);
+			const cv::Mat iImg = image(m_rectImgs[np]);
+			applyCmp(iImg, m_voBGImgParallel[np], m_outSplit[np]);
+			m_outSplit[np].copyTo(fgmask(m_rectImgs[np]));
 		});
-
-	joinImages(m_outSplit, oFGMask);
+	//joinImages(m_outSplit, fgmask);
 }
 
-void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv::Mat>& bgImg, cv::Mat& fgmask, double learningRate) {
+void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv::Mat>& bgImg, cv::Mat& fgmask) {
 	fgmask = cv::Scalar_<uchar>(0);
-
-	const size_t nLearningRate = (size_t)ceil(learningRate);
 
 	cv::Size _oImgSize = image.size();
 
 	for (int y = 0; y < _oImgSize.height; ++y) {
 		for (int x = 0; x < _oImgSize.width; ++x) {
-			// std::cout << "1" << std::endl;
 			size_t nGoodSamplesCount = 0, nSampleIdx = 0;
-			while (nGoodSamplesCount < m_nRequiredBGSamples && nSampleIdx < m_nBGSamples) {
+			while ((nGoodSamplesCount < m_nRequiredBGSamples) && (nSampleIdx < m_nBGSamples)) {
 				const cv::Vec3b& in = image.at<cv::Vec3b>(y, x);
 				const cv::Vec3b& bg = bgImg[nSampleIdx].at<cv::Vec3b>(y, x);
 				//if (lv::L2dist(in, bg) < m_nColorDistThreshold * 3)
-				if (L2dist3Squared(in, bg) < m_nColorDistThresholdSquared)
+				if (L2dist3Squared(in, bg) < m_nColorDistThresholdSquared) {
 					nGoodSamplesCount++;
+				}
 				nSampleIdx++;
 			}
-			// std::cout << "2" << std::endl;
 			if (nGoodSamplesCount < m_nRequiredBGSamples) {
-				// std::cout << "3" << std::endl;
 				fgmask.at<uchar>(y, x) = UCHAR_MAX;
 			} else {
-				// std::cout << "4" << std::endl;
-				if ((Pcg32::fast() % nLearningRate) == 0)
+				if ((Pcg32::fast() % m_learningRate) == 0) {
 					bgImg[Pcg32::fast() % m_nBGSamples].at<cv::Vec3b>(y, x) = image.at<cv::Vec3b>(y, x);
-				if ((Pcg32::fast() % nLearningRate) == 0) {
+				}
+				if ((Pcg32::fast() % m_learningRate) == 0) {
 					int x_rand, y_rand;
 					getNeighborPosition_3x3(x_rand, y_rand, x, y, _oImgSize);
 					const size_t s_rand = Pcg32::fast() % m_nBGSamples;

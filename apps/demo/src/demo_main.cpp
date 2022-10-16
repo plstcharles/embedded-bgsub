@@ -76,8 +76,8 @@ int main(int argc, const char** argv) {
         }
 
         double startTime = getAbsoluteTime();
-        // vibe.apply(frame, vibeMask, learningRate);
-        vibe.applyParallel(frame, vibeMask, learningRate);
+        // vibe.apply(frame, vibeMask);
+        vibe.applyParallel(frame, vibeMask);
         double endTime = getAbsoluteTime();
         totalTime += endTime - startTime;
         ++numFrames;
