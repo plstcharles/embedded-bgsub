@@ -196,7 +196,7 @@ void BackgroundSubtractorViBe_3ch::applyParallel(const cv::Mat& image, cv::Mat& 
 		m_processSeq.end(),
 		[&](int np)
 		{
-			const cv::Mat iImg = image(m_rectImgs[np]);
+			const cv::Mat iImg{image(m_rectImgs[np])};
 			applyCmp(iImg, m_voBGImgParallel[np], m_outSplit[np]);
 			m_outSplit[np].copyTo(fgmask(m_rectImgs[np]));
 		});
@@ -210,15 +210,16 @@ void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv
 
 	for (int y = 0; y < _oImgSize.height; ++y) {
 		for (int x = 0; x < _oImgSize.width; ++x) {
-			size_t nGoodSamplesCount = 0, nSampleIdx = 0;
+			size_t nGoodSamplesCount{0}, 
+				nSampleIdx{0};
 			while ((nGoodSamplesCount < m_nRequiredBGSamples) && (nSampleIdx < m_nBGSamples)) {
-				const cv::Vec3b& in = image.at<cv::Vec3b>(y, x);
-				const cv::Vec3b& bg = bgImg[nSampleIdx].at<cv::Vec3b>(y, x);
+				const cv::Vec3b& in{image.at<cv::Vec3b>(y, x)};
+				const cv::Vec3b& bg{bgImg[nSampleIdx].at<cv::Vec3b>(y, x)};
 				//if (lv::L2dist(in, bg) < m_nColorDistThreshold * 3)
 				if (L2dist3Squared(in, bg) < m_nColorDistThresholdSquared) {
-					nGoodSamplesCount++;
+					++nGoodSamplesCount;
 				}
-				nSampleIdx++;
+				++nSampleIdx;
 			}
 			if (nGoodSamplesCount < m_nRequiredBGSamples) {
 				fgmask.at<uchar>(y, x) = UCHAR_MAX;
@@ -229,7 +230,7 @@ void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv
 				if ((Pcg32::fast() % m_learningRate) == 0) {
 					int x_rand, y_rand;
 					getNeighborPosition_3x3(x_rand, y_rand, x, y, _oImgSize);
-					const size_t s_rand = Pcg32::fast() % m_nBGSamples;
+					const size_t s_rand{Pcg32::fast() % m_nBGSamples};
 					bgImg[s_rand].at<cv::Vec3b>(y_rand, x_rand) = image.at<cv::Vec3b>(y, x);
 				}
 			}
