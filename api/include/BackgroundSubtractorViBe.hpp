@@ -142,7 +142,19 @@ public:
     /// (re)initiaization method; needs to be called before starting background subtraction
     virtual void initialize(const cv::Mat& oInitImg);
     /// primary model update function; the learning param is reinterpreted as an integer and should be > 0 (smaller values == faster adaptation)
-    virtual void apply(cv::InputArray image, cv::OutputArray fgmask, double learningRate = BGSVIBE_DEFAULT_LEARNING_RATE);
+    virtual void apply(const cv::InputArray image, cv::OutputArray fgmask, double learningRate = BGSVIBE_DEFAULT_LEARNING_RATE);
+
+    void initializeParallel(const cv::Mat& oInitImg, int numProcesses);
+    void applyParallel(const cv::InputArray image, cv::OutputArray fgmask, double learningRate = BGSVIBE_DEFAULT_LEARNING_RATE);
+
 private:
     const size_t m_nColorDistThresholdSquared;
+
+    int m_numProcessesParallel;
+    std::vector<std::vector<cv::Mat>> m_voBGImgParallel;
+    std::vector<int> m_processSeq;
+
+    void splitImages(const cv::Mat& inputImg, std::vector<cv::Mat>& outputImages, int numSlices);
+    void joinImages(std::vector<cv::Mat>& outputImages, cv::Mat& outputImg);
+    void applyCmp(const cv::Mat& _image, std::vector<cv::Mat>& _bg, cv::Mat& _fgmask, double learningRate);
 };

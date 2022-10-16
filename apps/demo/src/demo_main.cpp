@@ -61,9 +61,11 @@ int main(int argc, const char** argv) {
         std::cout << "Image type not supported" << std::endl;
         return -1;
     }
-    vibe.initialize(frame);
     vibeMask.create(frame.size(), CV_8UC1);
     cv::imshow("CamShift Demo", frame);
+
+    //vibe.initialize(frame);
+    vibe.initializeParallel(frame, 3);
 
     std::cout << "Enter loop" << std::endl;
     while (true) {
@@ -74,7 +76,8 @@ int main(int argc, const char** argv) {
         }
 
         double startTime = getAbsoluteTime();
-        vibe.apply(frame, vibeMask, learningRate);
+        // vibe.apply(frame, vibeMask, learningRate);
+        vibe.applyParallel(frame, vibeMask, learningRate);
         double endTime = getAbsoluteTime();
         totalTime += endTime - startTime;
         ++numFrames;
