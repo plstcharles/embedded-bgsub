@@ -189,16 +189,23 @@ void BackgroundSubtractorViBe_3ch::initializeParallel(const cv::Mat& initImgRGB,
 	splitImages(initImgRGB, imgsSplit, numProcesses);
 	m_voBGImgParallel.resize(numProcesses);
 
+	m_rectImgs.resize(m_numProcessesParallel);
+	m_outSplit.resize(m_numProcessesParallel);
+
+	int y = 0;
+	int h = m_oImgSize.height / m_numProcessesParallel;
+
 	for (int np = 0; np < numProcesses; ++np) {
 		m_processSeq[np] = np;
-		//std::cout << "Process[" << np << "]" << std::endl;
+
 		const cv::Mat& oInitImgRGB = imgsSplit[np];
+		const cv::Size _oImgSize = oInitImgRGB.size();
+
+		m_outSplit[np].create(_oImgSize, CV_8UC1);
 		std::vector<cv::Mat> _voBGImg = std::vector<cv::Mat>(m_nBGSamples);
 
-		const cv::Size _oImgSize = oInitImgRGB.size();
 		int y_sample, x_sample;
 		for (size_t s = 0; s < m_nBGSamples; s++) {
-			//std::cout << "Sample[" << s << "]" << std::endl;
 			_voBGImg[s].create(_oImgSize, CV_8UC3);
 			_voBGImg[s] = cv::Scalar(0, 0, 0);
 			for (int y_orig = 0; y_orig < _oImgSize.height; y_orig++) {
@@ -209,31 +216,32 @@ void BackgroundSubtractorViBe_3ch::initializeParallel(const cv::Mat& initImgRGB,
 			}
 		}
 		m_voBGImgParallel[np] = _voBGImg;
+
+		// Calculating partition rectangles
+		if (np == (m_numProcessesParallel - 1)) {
+			h = m_oImgSize.height - y;
+		}
+		m_rectImgs[np] = cv::Rect(0, y, m_oImgSize.width, h);
+		y += h;
 	}
 	m_bInitialized = true;
-	//std::cout << "End initializeParallel" << std::endl;
 }
 
 void BackgroundSubtractorViBe_3ch::applyParallel(const cv::InputArray image, cv::OutputArray fgmask, double learningRate) {
 	cv::Mat inputImgRGB = image.getMat();
 	cv::Mat oFGMask = fgmask.getMat();
 	
-	std::vector<cv::Mat> imgsSplit;
-	splitImages(inputImgRGB, imgsSplit, m_numProcessesParallel);
-
-	std::vector<cv::Mat> outSplit(m_numProcessesParallel);
-
 	std::for_each(
 		std::execution::par,
 		m_processSeq.begin(),
 		m_processSeq.end(),
 		[&](int np)
 		{
-			outSplit[np].create(imgsSplit[np].size(), CV_8UC1);
-			applyCmp(imgsSplit[np], m_voBGImgParallel[np], outSplit[np], learningRate);
+			const cv::Mat iImg = inputImgRGB(m_rectImgs[np]);
+			applyCmp(iImg, m_voBGImgParallel[np], m_outSplit[np], learningRate);
 		});
 
-	joinImages(outSplit, oFGMask);
+	joinImages(m_outSplit, oFGMask);
 }
 
 void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv::Mat>& bgImg, cv::Mat& fgmask, double learningRate) {

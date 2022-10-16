@@ -65,7 +65,7 @@ int main(int argc, const char** argv) {
     cv::imshow("CamShift Demo", frame);
 
     //vibe.initialize(frame);
-    vibe.initializeParallel(frame, 3);
+    vibe.initializeParallel(frame, 4);
 
     std::cout << "Enter loop" << std::endl;
     while (true) {

@@ -153,6 +153,8 @@ private:
     int m_numProcessesParallel;
     std::vector<std::vector<cv::Mat>> m_voBGImgParallel;
     std::vector<int> m_processSeq;
+    std::vector<cv::Rect> m_rectImgs;
+    std::vector<cv::Mat> m_outSplit;
 
     void splitImages(const cv::Mat& inputImg, std::vector<cv::Mat>& outputImages, int numSlices);
     void joinImages(std::vector<cv::Mat>& outputImages, cv::Mat& outputImg);
