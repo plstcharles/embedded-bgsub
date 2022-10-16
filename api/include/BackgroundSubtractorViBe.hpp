@@ -37,6 +37,7 @@
 // @@@@@@@@
 
 #include <opencv2/video/background_segm.hpp>
+#include "pcg32.hpp"
 
 /// defines the default value for BackgroundSubtractorViBe::m_nColorDistThreshold
 #define BGSVIBE_DEFAULT_COLOR_DIST_THRESHOLD (20)
@@ -80,9 +81,38 @@ protected:
     cv::Size m_oImgSize;
     /// absolute color distance threshold ('R' or 'radius' in the original ViBe paper)
     const size_t m_nColorDistThreshold;
-    const size_t m_nColorDistThresholdSquared;
     /// defines whether or not the subtractor is fully initialized
     bool m_bInitialized;
+
+    // Second version, not doing square root
+    static inline size_t L2dist3Squared(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
+        const long r0 = a[0] - b[0];
+        const long r1 = a[1] - b[1];
+        const long r2 = a[2] - b[2];
+        return (r0 * r0) + (r1 * r1) + (r2 * r2);
+    }
+
+    	/// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
+	static inline void getNeighborPosition_3x3(int& nNeighborCoord_X, int& nNeighborCoord_Y, const int nOrigCoord_X, const int nOrigCoord_Y, const cv::Size& oImageSize) {
+		typedef std::array<int, 2> Nb;
+		static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
+				Nb{-1, 1},Nb{0, 1},Nb{1, 1},
+				Nb{-1, 0},         Nb{1, 0},
+				Nb{-1,-1},Nb{0,-1},Nb{1,-1},
+		};
+		const int r = Pcg32::fast() % 8;
+		nNeighborCoord_X = nOrigCoord_X + s_anNeighborPattern[r][0];
+		nNeighborCoord_Y = nOrigCoord_Y + s_anNeighborPattern[r][1];
+
+        if (nNeighborCoord_X < 0)
+			nNeighborCoord_X = 0;
+		else if (nNeighborCoord_X >= oImageSize.width)
+			nNeighborCoord_X = oImageSize.width - 1;
+		if (nNeighborCoord_Y < 0)
+			nNeighborCoord_Y = 0;
+		else if (nNeighborCoord_Y >= oImageSize.height)
+			nNeighborCoord_Y = oImageSize.height - 1;
+	}
 };
 
 /// ViBe foreground-background segmentation algorithm (1ch/grayscale version)
@@ -113,4 +143,6 @@ public:
     virtual void initialize(const cv::Mat& oInitImg);
     /// primary model update function; the learning param is reinterpreted as an integer and should be > 0 (smaller values == faster adaptation)
     virtual void apply(cv::InputArray image, cv::OutputArray fgmask, double learningRate = BGSVIBE_DEFAULT_LEARNING_RATE);
+private:
+    const size_t m_nColorDistThresholdSquared;
 };

@@ -48,46 +48,49 @@ int main(int argc, const char** argv) {
     double frameWidth = cap.get(cv::CAP_PROP_FRAME_WIDTH);
     double frameHeight = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
 
-    std::cout << "Capture size: " << (int)frameWidth << " x " << (int)frameHeight << "\n";
+    std::cout << "Capture size: " << (int)frameWidth << " x " << (int)frameHeight << std::endl;
 
     cv::namedWindow("ViBe Demo", 0);
 
     cv::Mat frame, vibeMask;
-    bool vibeInit = true;
     long numFrames = 0;
     double totalTime = 0;
 
+    cap >> frame;
+    if (frame.type() != CV_8UC3) {
+        std::cout << "Image type not supported" << std::endl;
+        return -1;
+    }
+    vibe.initialize(frame);
+    vibeMask.create(frame.size(), CV_8UC1);
+    cv::imshow("CamShift Demo", frame);
+
+    std::cout << "Enter loop" << std::endl;
     while (true) {
         cap >> frame;
-        if (frame.type() != CV_8UC3)
-            std::cout << "WARNING: Will convert image\n";
-
         if (frame.empty()) {
+            std::cout << "No image\n";
             break;
         }
-        if (vibeInit)
-        {
-            vibe.initialize(frame);
-            vibeInit = false;
-            vibeMask.create(frame.size(), CV_8UC1);
-        } else {
-            double startTime = getAbsoluteTime();
-            vibe.apply(frame, vibeMask, learningRate);
-            double endTime = getAbsoluteTime();
-            totalTime += endTime - startTime;
-            ++numFrames;
 
-            if (numFrames % 100 == 0) {
-                std::cout << "Framerate: " << (numFrames / totalTime) << "fps\n";
-            }
-            cv::imshow("CamShift Demo", vibeMask);
+        double startTime = getAbsoluteTime();
+        vibe.apply(frame, vibeMask, learningRate);
+        double endTime = getAbsoluteTime();
+        totalTime += endTime - startTime;
+        ++numFrames;
+
+        if (numFrames % 100 == 0) {
+            std::cout << "Framerate: " << (numFrames / totalTime) << "fps" << std::endl;
         }
+        cv::imshow("CamShift Demo", vibeMask);
 
         char c = (char)cv::waitKey(10);
         if (c == 27) {
+            std::cout << "Escape key pressed" << std::endl;
             break;
         }
     }
+    std::cout << "Exit loop\n" << std::endl;
 
     return 0;
 }

@@ -21,22 +21,22 @@ namespace lv {
 	NEXT_BIGGER_INTEGER(uint8_t, uint16_t);
 
 	/// returns pixel coordinates clamped to the given image & border size
-	inline void clampImageCoords(int& nSampleCoord_X, int& nSampleCoord_Y, const int nBorderSize, const cv::Size& oImageSize) {
-		if (nSampleCoord_X < nBorderSize)
-			nSampleCoord_X = nBorderSize;
-		else if (nSampleCoord_X >= oImageSize.width - nBorderSize)
-			nSampleCoord_X = oImageSize.width - nBorderSize - 1;
-		if (nSampleCoord_Y < nBorderSize)
-			nSampleCoord_Y = nBorderSize;
-		else if (nSampleCoord_Y >= oImageSize.height - nBorderSize)
-			nSampleCoord_Y = oImageSize.height - nBorderSize - 1;
+	inline void clampImageCoords(int& nSampleCoord_X, int& nSampleCoord_Y, const cv::Size& oImageSize) {
+		if (nSampleCoord_X < 0)
+			nSampleCoord_X = 0;
+		else if (nSampleCoord_X >= oImageSize.width)
+			nSampleCoord_X = oImageSize.width - 1;
+		if (nSampleCoord_Y < 0)
+			nSampleCoord_Y = 0;
+		else if (nSampleCoord_Y >= oImageSize.height)
+			nSampleCoord_Y = oImageSize.height - 1;
 	}
 
 	/// returns the sampling location for the specified random index & original pixel location, given a predefined kernel; also guards against out-of-bounds values via image/border size check
 	template<int nKernelHeight, int nKernelWidth>
 	inline void getSamplePosition(const std::array<std::array<int, nKernelWidth>, nKernelHeight>& anSamplesInitPattern,
 		const int nSamplesInitPatternTot, const int nRandIdx, int& nSampleCoord_X, int& nSampleCoord_Y,
-		const int nOrigCoord_X, const int nOrigCoord_Y, const int nBorderSize, const cv::Size& oImageSize) {
+		const int nOrigCoord_X, const int nOrigCoord_Y, const cv::Size& oImageSize) {
 		int r = 1 + (nRandIdx % nSamplesInitPatternTot);
 		for (nSampleCoord_Y = 0; nSampleCoord_Y < nKernelHeight; ++nSampleCoord_Y) {
 			for (nSampleCoord_X = 0; nSampleCoord_X < nKernelWidth; ++nSampleCoord_X) {
@@ -48,7 +48,7 @@ namespace lv {
 	stop:
 		nSampleCoord_X += nOrigCoord_X - nKernelWidth / 2;
 		nSampleCoord_Y += nOrigCoord_Y - nKernelHeight / 2;
-		clampImageCoords(nSampleCoord_X, nSampleCoord_Y, nBorderSize, oImageSize);
+		clampImageCoords(nSampleCoord_X, nSampleCoord_Y, oImageSize);
 	}
 
 	/// returns the sampling location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
@@ -66,34 +66,46 @@ namespace lv {
 				std::array<int,7>{ 4, 8,12,14,12, 8, 4,},
 				std::array<int,7>{ 2, 4, 6, 7, 6, 4, 2,},
 		};
-		getSamplePosition<7, 7>(s_anSamplesInitPattern, s_nSamplesInitPatternTot, nRandIdx, nSampleCoord_X, nSampleCoord_Y, nOrigCoord_X, nOrigCoord_Y, nBorderSize, oImageSize);
+		getSamplePosition<7, 7>(s_anSamplesInitPattern, s_nSamplesInitPatternTot, nRandIdx, nSampleCoord_X, nSampleCoord_Y, nOrigCoord_X, nOrigCoord_Y, oImageSize);
 	}
 
-	/// returns the neighbor location for the specified random index & original pixel location, given a predefined neighborhood; also guards against out-of-bounds values via image/border size check
-	template<int nNeighborCount>
-	inline void getNeighborPosition(const std::array<std::array<int, 2>, nNeighborCount>& anNeighborPattern,
-		const int nRandIdx, int& nNeighborCoord_X, int& nNeighborCoord_Y,
-		const int nOrigCoord_X, const int nOrigCoord_Y,
-		const int nBorderSize, const cv::Size& oImageSize) {
-		//static_assert(nNeighborCount > 0, "invalid input neighbor pattern array size");
-		const int r = nRandIdx % nNeighborCount;
-		nNeighborCoord_X = nOrigCoord_X + anNeighborPattern[r][0];
-		nNeighborCoord_Y = nOrigCoord_Y + anNeighborPattern[r][1];
-		clampImageCoords(nNeighborCoord_X, nNeighborCoord_Y, nBorderSize, oImageSize);
-	}
+	// /// returns the neighbor location for the specified random index & original pixel location, given a predefined neighborhood; also guards against out-of-bounds values via image/border size check
+	// template<int nNeighborCount>
+	// inline void getNeighborPosition(const std::array<std::array<int, 2>, nNeighborCount>& anNeighborPattern,
+	// 	const int nRandIdx, int& nNeighborCoord_X, int& nNeighborCoord_Y,
+	// 	const int nOrigCoord_X, const int nOrigCoord_Y, const cv::Size& oImageSize) {
+	// 	const int r = nRandIdx % nNeighborCount;
+	// 	nNeighborCoord_X = nOrigCoord_X + anNeighborPattern[r][0];
+	// 	nNeighborCoord_Y = nOrigCoord_Y + anNeighborPattern[r][1];
+	// 	clampImageCoords(nNeighborCoord_X, nNeighborCoord_Y, oImageSize);
+	// }
 
-	/// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
-	inline void getNeighborPosition_3x3(const int nRandIdx, int& nNeighborCoord_X, int& nNeighborCoord_Y,
-		const int nOrigCoord_X, const int nOrigCoord_Y,
-		const int nBorderSize, const cv::Size& oImageSize) {
-		typedef std::array<int, 2> Nb;
-		static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
-				Nb{-1, 1},Nb{0, 1},Nb{1, 1},
-				Nb{-1, 0},         Nb{1, 0},
-				Nb{-1,-1},Nb{0,-1},Nb{1,-1},
-		};
-		getNeighborPosition<8>(s_anNeighborPattern, nRandIdx, nNeighborCoord_X, nNeighborCoord_Y, nOrigCoord_X, nOrigCoord_Y, nBorderSize, oImageSize);
-	}
+	// /// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
+	// inline void getNeighborPosition_3x3(const int nRandIdx, int& nNeighborCoord_X, int& nNeighborCoord_Y,
+	// 	const int nOrigCoord_X, const int nOrigCoord_Y, const cv::Size& oImageSize) {
+	// 	typedef std::array<int, 2> Nb;
+	// 	static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
+	// 			Nb{-1, 1},Nb{0, 1},Nb{1, 1},
+	// 			Nb{-1, 0},         Nb{1, 0},
+	// 			Nb{-1,-1},Nb{0,-1},Nb{1,-1},
+	// 	};
+	// 	const int r = nRandIdx % 8;
+	// 	nNeighborCoord_X = nOrigCoord_X + s_anNeighborPattern[r][0];
+	// 	nNeighborCoord_Y = nOrigCoord_Y + s_anNeighborPattern[r][1];
+	// 	clampImageCoords(nNeighborCoord_X, nNeighborCoord_Y, oImageSize);
+	// }
+
+	// /// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
+	// inline void getNeighborPosition_3x3(const int nRandIdx, int& nNeighborCoord_X, int& nNeighborCoord_Y,
+	// 	const int nOrigCoord_X, const int nOrigCoord_Y, const cv::Size& oImageSize) {
+	// 	typedef std::array<int, 2> Nb;
+	// 	static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
+	// 			Nb{-1, 1},Nb{0, 1},Nb{1, 1},
+	// 			Nb{-1, 0},         Nb{1, 0},
+	// 			Nb{-1,-1},Nb{0,-1},Nb{1,-1},
+	// 	};
+	// 	getNeighborPosition<8>(s_anNeighborPattern, nRandIdx, nNeighborCoord_X, nNeighborCoord_Y, nOrigCoord_X, nOrigCoord_Y, oImageSize);
+	// }
 
 	/// computes the squared L2 distance between two integer values (i.e. == squared L1dist); returns an unsigned type of twice the size of the input type
 	template<typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
