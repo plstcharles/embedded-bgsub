@@ -62,7 +62,7 @@ int main(int argc, const char** argv) {
         return -1;
     }
     vibeMask.create(frame.size(), CV_8UC1);
-    cv::imshow("CamShift Demo", frame);
+    cv::imshow("ViBe Demo", frame);
 
     //vibe.initialize(frame);
     vibe.initializeParallel(frame, 4);
@@ -85,7 +85,7 @@ int main(int argc, const char** argv) {
         if (numFrames % 100 == 0) {
             std::cout << "Framerate: " << (numFrames / totalTime) << "fps" << std::endl;
         }
-        cv::imshow("CamShift Demo", vibeMask);
+        cv::imshow("ViBe Demo", vibeMask);
 
         char c = (char)cv::waitKey(10);
         if (c == 27) {
