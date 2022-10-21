@@ -19,6 +19,14 @@ target_link_libraries(
             embedded_bgsub_api
 )
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_libraries(  # for <execution> stdlib
+        embedded_bgsub_demo
+            PRIVATE
+                TBB::tbb
+    )
+endif ()
+
 set_target_properties(
     embedded_bgsub_demo
         PROPERTIES

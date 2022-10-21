@@ -103,7 +103,7 @@ protected:
 				Nb{-1, 0},         Nb{1, 0},
 				Nb{-1,-1},Nb{0,-1},Nb{1,-1},
 		};
-		const int r{Pcg32::fast() % 8};
+		const uint32_t r{Pcg32::fast() % 8};
 		nNeighborCoord_X = nOrigCoord_X + s_anNeighborPattern[r][0];
 		nNeighborCoord_Y = nOrigCoord_Y + s_anNeighborPattern[r][1];
 
