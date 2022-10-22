@@ -29,7 +29,8 @@ BackgroundSubtractorViBe::BackgroundSubtractorViBe(size_t nColorDistThreshold,
 	m_voBGImg(nBGSamples),
 	m_nColorDistThreshold(nColorDistThreshold),
 	m_learningRate(learningRate),
-	m_bInitialized(false) {}
+	m_bInitialized(false),
+	m_ANDlearningRate{learningRate - 1} {}
 
 BackgroundSubtractorViBe::~BackgroundSubtractorViBe() {}
 
@@ -200,13 +201,56 @@ void BackgroundSubtractorViBe_3ch::applyParallel(const cv::Mat& image, cv::Mat& 
 			applyCmp(iImg, m_voBGImgParallel[np], m_outSplit[np]);
 			m_outSplit[np].copyTo(fgmask(m_rectImgs[np]));
 		});
-	//joinImages(m_outSplit, fgmask);
 }
 
 void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv::Mat>& bgImg, cv::Mat& fgmask) {
 	fgmask = cv::Scalar_<uchar>(0);
 
-	cv::Size _oImgSize = image.size();
+	const cv::Size& _oImgSize{image.size()};
+	const int totalPixels{_oImgSize.width * _oImgSize.height};
+
+	for (int pixOffset{0}, colorPixOffset{0}; 
+		pixOffset < totalPixels; 
+		++pixOffset, colorPixOffset += 3) {
+		size_t nGoodSamplesCount{0}, 
+			nSampleIdx{0};
+
+		const uchar* const pixData{&image.data[colorPixOffset]};
+
+		while ((nGoodSamplesCount < m_nRequiredBGSamples) 
+				&& (nSampleIdx < m_nBGSamples)) {
+			const uchar* const bg{&bgImg[nSampleIdx].data[colorPixOffset]};
+			if (L2dist3Squared(pixData, bg) < m_nColorDistThresholdSquared) {
+				++nGoodSamplesCount;
+			}
+			++nSampleIdx;
+		}
+		if (nGoodSamplesCount < m_nRequiredBGSamples) {
+			fgmask.data[pixOffset] = UCHAR_MAX;
+		} else {
+			// if ((Pcg32::fast() % m_learningRate) == 0) {
+			if ((Pcg32::fast() & m_ANDlearningRate) == 0) {
+				uchar* const bgImgPixData{&bgImg[Pcg32::fast() & m_ANDlearningRate].data[colorPixOffset]};
+				bgImgPixData[0] = pixData[0];
+				bgImgPixData[1] = pixData[1];
+				bgImgPixData[2] = pixData[2];
+			}
+			if ((Pcg32::fast() & m_ANDlearningRate) == 0) {
+				int neighData{getNeighborPosition_3x3New(pixOffset, _oImgSize)};
+				// uchar* const xyRandData{&bgImg[Pcg32::fast() % m_nBGSamples].data[neighData * 3]};
+				uchar* const xyRandData{&bgImg[Pcg32::fast() & m_ANDlearningRate].data[neighData * 3]};
+				xyRandData[0] = pixData[0];
+				xyRandData[1] = pixData[1];
+				xyRandData[2] = pixData[2];
+			}
+		}
+	}
+}
+
+void BackgroundSubtractorViBe_3ch::applyCmpOld(const cv::Mat& image, std::vector<cv::Mat>& bgImg, cv::Mat& fgmask) {
+	fgmask = cv::Scalar_<uchar>(0);
+
+	const cv::Size _oImgSize = image.size();
 
 	for (int y = 0; y < _oImgSize.height; ++y) {
 		for (int x = 0; x < _oImgSize.width; ++x) {
@@ -224,12 +268,12 @@ void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv
 				fgmask.at<uchar>(y, x) = UCHAR_MAX;
 			} else {
 				if ((Pcg32::fast() % m_learningRate) == 0) {
-					bgImg[Pcg32::fast() % m_nBGSamples].at<cv::Vec3b>(y, x) = image.at<cv::Vec3b>(y, x);
+					bgImg[Pcg32::fast() % m_nBGSamples].at<cv::Vec3b>(y, x) = in;
 				}
 				if ((Pcg32::fast() % m_learningRate) == 0) {
 					int x_rand, y_rand;
 					getNeighborPosition_3x3(x_rand, y_rand, x, y, _oImgSize);
-					bgImg[Pcg32::fast() % m_nBGSamples].at<cv::Vec3b>(y_rand, x_rand) = image.at<cv::Vec3b>(y, x);
+					bgImg[Pcg32::fast() % m_nBGSamples].at<cv::Vec3b>(y_rand, x_rand) = in;
 				}
 			}
 		}

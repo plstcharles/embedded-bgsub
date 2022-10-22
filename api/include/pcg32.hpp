@@ -5,7 +5,7 @@
 class Pcg32 {
 public:
 
-	static inline uint32_t fast(void)
+	static inline uint32_t fast()
 	{
 		static uint64_t mcg_state{0xcafef00dd15ea5e5u};	// Must be odd
 		uint64_t x = mcg_state;

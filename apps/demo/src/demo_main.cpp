@@ -20,7 +20,6 @@ static void help(const char** argv)
 }
 
 int main(int argc, const char** argv) {
-    int learningRate = 10;
     cv::VideoCapture cap;
     BackgroundSubtractorViBe_3ch vibe;
     cv::CommandLineParser parser(argc, argv, keys);

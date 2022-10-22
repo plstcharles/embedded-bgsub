@@ -45,11 +45,11 @@ public:
     /// defines the default value for BackgroundSubtractorViBe::m_nColorDistThreshold
     static const size_t BGSVIBE_DEFAULT_COLOR_DIST_THRESHOLD{20};
     /// defines the default value for BackgroundSubtractorViBe::m_nBGSamples
-    static const size_t BGSVIBE_DEFAULT_NB_BG_SAMPLES{20};
+    static const size_t BGSVIBE_DEFAULT_NB_BG_SAMPLES{16};
     /// defines the default value for BackgroundSubtractorViBe::m_nRequiredBGSamples
     static const size_t BGSVIBE_DEFAULT_REQUIRED_NB_BG_SAMPLES{2};
     /// defines the default value for the learning rate passed to BackgroundSubtractorViBe::apply (the 'subsampling' factor in the original ViBe paper)
-    static const size_t BGSVIBE_DEFAULT_LEARNING_RATE{10};
+    static const size_t BGSVIBE_DEFAULT_LEARNING_RATE{8};
     /// defines the internal threshold adjustment factor to use when determining if the variation of a single channel is enough to declare the pixel as foreground
     #define BGSVIBE_SINGLECHANNEL_THRESHOLD_DIFF_FACTOR (1.60f)
     /// defines whether we should use single channel variation checks for fg/bg segmentation validation or not
@@ -58,6 +58,7 @@ public:
     static const bool BGSVIBE_USE_L1_DISTANCE_CHECK{0};
 
     /// full constructor
+    /// Make sure learningRate is factor of 2
     BackgroundSubtractorViBe(size_t nColorDistThreshold = BGSVIBE_DEFAULT_COLOR_DIST_THRESHOLD,
         size_t nBGSamples = BGSVIBE_DEFAULT_NB_BG_SAMPLES,
         size_t nRequiredBGSamples = BGSVIBE_DEFAULT_REQUIRED_NB_BG_SAMPLES,
@@ -82,10 +83,12 @@ protected:
     cv::Size m_oImgSize;
     /// absolute color distance threshold ('R' or 'radius' in the original ViBe paper)
     const size_t m_nColorDistThreshold;
-    /// should be > 0 (smaller values == faster adaptation)
+    /// should be > 0 and factor of 2 (smaller values == faster adaptation)
     const size_t m_learningRate;
     /// defines whether or not the subtractor is fully initialized
     bool m_bInitialized;
+    /// should be > 0 and factor of 2 (smaller values == faster adaptation)
+    const size_t m_ANDlearningRate;
 
     // Second version, not doing square root
     static inline size_t L2dist3Squared(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
@@ -95,7 +98,28 @@ protected:
         return (r0 * r0) + (r1 * r1) + (r2 * r2);
     }
 
-    	/// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
+    static inline size_t L2dist3Squared(const uchar* const a, const uchar* const b) {
+        const long r0{a[0] - b[0]};
+        const long r1{a[1] - b[1]};
+        const long r2{a[2] - b[2]};
+        return (r0 * r0) + (r1 * r1) + (r2 * r2);
+    }
+
+    /// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
+	static inline int getNeighborPosition_3x3New(const int pix, const cv::Size& oImageSize) {
+        typedef std::array<int, 2> Nb;
+		static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
+				Nb{-1, 1},Nb{0, 1},Nb{1, 1},
+				Nb{-1, 0},         Nb{1, 0},
+				Nb{-1,-1},Nb{0,-1},Nb{1,-1},
+		};
+		const size_t r{Pcg32::fast() & 0x7};
+        int nNeighborCoord_X{std::max(std::min((pix % oImageSize.width) + s_anNeighborPattern[r][0], oImageSize.width - 1), 0)};
+        int nNeighborCoord_Y{std::max(std::min((pix / oImageSize.width) + s_anNeighborPattern[r][1], oImageSize.height - 1), 0)};
+        return nNeighborCoord_Y * oImageSize.width + nNeighborCoord_X;
+	}
+
+    /// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
 	static inline void getNeighborPosition_3x3(int& nNeighborCoord_X, int& nNeighborCoord_Y, const int nOrigCoord_X, const int nOrigCoord_Y, const cv::Size& oImageSize) {
 		typedef std::array<int, 2> Nb;
 		static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
@@ -103,7 +127,7 @@ protected:
 				Nb{-1, 0},         Nb{1, 0},
 				Nb{-1,-1},Nb{0,-1},Nb{1,-1},
 		};
-		const int r{Pcg32::fast() % 8};
+		const size_t r{Pcg32::fast() & 0x7};
 		nNeighborCoord_X = nOrigCoord_X + s_anNeighborPattern[r][0];
 		nNeighborCoord_Y = nOrigCoord_Y + s_anNeighborPattern[r][1];
 
@@ -164,4 +188,5 @@ private:
     void splitImages(const cv::Mat& inputImg, std::vector<cv::Mat>& outputImages);
     void joinImages(const std::vector<cv::Mat>& outputImages, cv::Mat& outputImg);
     void applyCmp(const cv::Mat& _image, std::vector<cv::Mat>& _bg, cv::Mat& _fgmask);
+    void applyCmpOld(const cv::Mat& _image, std::vector<cv::Mat>& _bg, cv::Mat& _fgmask);
 };
