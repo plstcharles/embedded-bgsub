@@ -237,7 +237,6 @@ void BackgroundSubtractorViBe_3ch::applyCmp(const cv::Mat& image, std::vector<cv
 			}
 			if ((Pcg32::fast() & m_ANDlearningRate) == 0) {
 				int neighData{getNeighborPosition_3x3New(pixOffset, _oImgSize)};
-				// uchar* const xyRandData{&bgImg[Pcg32::fast() % m_nBGSamples].data[neighData * 3]};
 				uchar* const xyRandData{&bgImg[Pcg32::fast() & m_ANDlearningRate].data[neighData * 3]};
 				xyRandData[0] = pixData[0];
 				xyRandData[1] = pixData[1];
