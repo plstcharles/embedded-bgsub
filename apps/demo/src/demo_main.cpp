@@ -3,7 +3,8 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
 
-#include "api.hpp"
+//#include "BackgroundSubtractorViBe.hpp"
+#include "VibeBGS.hpp"
 #include "profiling.hpp"
 
 const char* keys =
@@ -21,11 +22,12 @@ static void help(const char** argv)
 
 int main(int argc, const char** argv) {
     cv::VideoCapture cap;
-    BackgroundSubtractorViBe_3ch vibe;
+    //BackgroundSubtractorViBe_3ch vibe;
+    sky360::VibeBGS vibeBGS;
     cv::CommandLineParser parser(argc, argv, keys);
 
     double freq = initFrequency();
-    std::cout << "Current frequency: " << freq << "\n";
+    //std::cout << "Current frequency: " << freq << "\n";
 
     if (parser.has("help"))
     {
@@ -51,7 +53,7 @@ int main(int argc, const char** argv) {
 
     cv::namedWindow("ViBe Demo", 0);
 
-    cv::Mat frame, vibeMask;
+    cv::Mat frame;
     long numFrames = 0;
     double totalTime = 0;
 
@@ -60,11 +62,11 @@ int main(int argc, const char** argv) {
         std::cout << "Image type not supported" << std::endl;
         return -1;
     }
-    vibeMask.create(frame.size(), CV_8UC1);
-    cv::imshow("ViBe Demo", frame);
 
-    //vibe.initialize(frame);
-    vibe.initializeParallel(frame, 4);
+    vibeBGS.initialize(frame);
+    cv::Mat vibeMask(frame.size(), CV_8UC1);
+
+    cv::imshow("ViBe Demo", frame);
 
     std::cout << "Enter loop" << std::endl;
     while (true) {
@@ -75,14 +77,14 @@ int main(int argc, const char** argv) {
         }
 
         double startTime = getAbsoluteTime();
-        // vibe.apply(frame, vibeMask);
-        vibe.applyParallel(frame, vibeMask);
+        vibeBGS.apply(frame, vibeMask);
         double endTime = getAbsoluteTime();
         totalTime += endTime - startTime;
         ++numFrames;
+        //std::cout << "Frame: " << numFrames << std::endl;
 
         if (numFrames % 100 == 0) {
-            std::cout << "Framerate: " << (numFrames / totalTime) << "fps" << std::endl;
+            std::cout << "Framerate: " << (numFrames / totalTime) << " fps" << std::endl;
         }
         cv::imshow("ViBe Demo", vibeMask);
 

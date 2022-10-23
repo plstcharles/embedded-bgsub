@@ -42,6 +42,57 @@
 /// ViBe foreground-background segmentation algorithm (abstract version)
 class BackgroundSubtractorViBe {
 public:
+    struct ImgSize {
+        ImgSize() {}
+        
+        ImgSize(int _width, int _height) 
+            : width(_width), height(_height), size(_width * _height)
+        {}
+
+        void set(int _width, int _height) {
+            width = _width;
+            height = _height;
+            size = _width * _height;
+        }
+
+        int width;
+        int height;
+        int size;
+    };
+
+    struct Img {
+        ImgSize imgSize;
+        std::shared_ptr<uchar[]> data;
+    };
+
+    struct params {
+        params(size_t nColorDistThreshold,
+            size_t nBGSamples,
+            size_t nRequiredBGSamples,
+            size_t learningRate) 
+            : m_nBGSamples(nBGSamples),
+            m_nRequiredBGSamples(nRequiredBGSamples),
+            m_nColorDistThreshold(nColorDistThreshold),
+            m_learningRate(learningRate),
+            m_bInitialized(false),
+            m_ANDlearningRate{learningRate - 1},
+            m_nColorDistThresholdSquared{(nColorDistThreshold * 3) * (nColorDistThreshold * 3)}
+        {}
+        /// number of different samples per pixel/block to be taken from input frames to build the background model ('N' in the original ViBe paper)
+        const size_t m_nBGSamples;
+        /// number of similar samples needed to consider the current pixel/block as 'background' ('#_min' in the original ViBe paper)
+        const size_t m_nRequiredBGSamples;
+        /// absolute color distance threshold ('R' or 'radius' in the original ViBe paper)
+        const size_t m_nColorDistThreshold;
+        const size_t m_nColorDistThresholdSquared;
+        /// should be > 0 and factor of 2 (smaller values == faster adaptation)
+        const size_t m_learningRate;
+        /// defines whether or not the subtractor is fully initialized
+        bool m_bInitialized;
+        /// should be > 0 and factor of 2 (smaller values == faster adaptation)
+        const size_t m_ANDlearningRate;
+    } m_params;
+
     /// defines the default value for BackgroundSubtractorViBe::m_nColorDistThreshold
     static const size_t BGSVIBE_DEFAULT_COLOR_DIST_THRESHOLD{20};
     /// defines the default value for BackgroundSubtractorViBe::m_nBGSamples
@@ -72,33 +123,35 @@ public:
     /// returns a copy of the latest reconstructed background image
     void getBackgroundImage(cv::Mat& backgroundImage) const;
 
-protected:
-    /// number of different samples per pixel/block to be taken from input frames to build the background model ('N' in the original ViBe paper)
-    const size_t m_nBGSamples;
-    /// number of similar samples needed to consider the current pixel/block as 'background' ('#_min' in the original ViBe paper)
-    const size_t m_nRequiredBGSamples;
-    /// background model pixel intensity samples
-    std::vector<cv::Mat> m_voBGImg;
-    /// input image size
-    cv::Size m_oImgSize;
-    /// absolute color distance threshold ('R' or 'radius' in the original ViBe paper)
-    const size_t m_nColorDistThreshold;
-    /// should be > 0 and factor of 2 (smaller values == faster adaptation)
-    const size_t m_learningRate;
-    /// defines whether or not the subtractor is fully initialized
-    bool m_bInitialized;
-    /// should be > 0 and factor of 2 (smaller values == faster adaptation)
-    const size_t m_ANDlearningRate;
-
-    // Second version, not doing square root
-    static inline size_t L2dist3Squared(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
+    static inline size_t L2dist3Squared(const uchar* const a, const uchar* const b) {
         const long r0{a[0] - b[0]};
         const long r1{a[1] - b[1]};
         const long r2{a[2] - b[2]};
         return (r0 * r0) + (r1 * r1) + (r2 * r2);
     }
 
-    static inline size_t L2dist3Squared(const uchar* const a, const uchar* const b) {
+    /// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
+	static inline int getNeighborPosition_3x3New2(const int pix, const ImgSize& oImageSize) {
+        typedef std::array<int, 2> Nb;
+		static const std::array<std::array<int, 2>, 8> s_anNeighborPattern = {
+				Nb{-1, 1},Nb{0, 1},Nb{1, 1},
+				Nb{-1, 0},         Nb{1, 0},
+				Nb{-1,-1},Nb{0,-1},Nb{1,-1},
+		};
+		const size_t r{Pcg32::fast() & 0x7};
+        int nNeighborCoord_X{std::max(std::min((pix % oImageSize.width) + s_anNeighborPattern[r][0], oImageSize.width - 1), 0)};
+        int nNeighborCoord_Y{std::max(std::min((pix / oImageSize.width) + s_anNeighborPattern[r][1], oImageSize.height - 1), 0)};
+        return nNeighborCoord_Y * oImageSize.width + nNeighborCoord_X;
+	}
+
+protected:
+    /// background model pixel intensity samples
+    std::vector<cv::Mat> m_voBGImg;
+    /// input image size
+    cv::Size m_oImgSize;
+
+    // Second version, not doing square root
+    static inline size_t L2dist3Squared(const cv::Vec<uchar, 3>& a, const cv::Vec<uchar, 3>& b) {
         const long r0{a[0] - b[0]};
         const long r1{a[1] - b[1]};
         const long r2{a[2] - b[2]};
@@ -174,10 +227,12 @@ public:
     virtual void apply(const cv::Mat& image, cv::Mat& fgmask);
 
     void initializeParallel(const cv::Mat& oInitImg, const int numProcesses);
+    void initializeParallel(const uchar* _imgRGB, int _width, int _height, const int _numProcesses);
     void applyParallel(const cv::Mat& image, cv::Mat& fgmask);
 
 private:
-    const size_t m_nColorDistThresholdSquared;
+
+    ImgSize m_imgSize;
 
     int m_numProcessesParallel;
     std::vector<std::vector<cv::Mat>> m_voBGImgParallel;
@@ -185,8 +240,18 @@ private:
     std::vector<cv::Rect> m_rectImgs;
     std::vector<cv::Mat> m_outSplit;
 
+    std::vector<std::vector<std::shared_ptr<uchar[]>>> m_newBgImgParallel;
+
+    void splitImages(const uchar* iImg, std::vector<std::shared_ptr<uchar[]>>& oImgs);
     void splitImages(const cv::Mat& inputImg, std::vector<cv::Mat>& outputImages);
     void joinImages(const std::vector<cv::Mat>& outputImages, cv::Mat& outputImg);
-    void applyCmp(const cv::Mat& _image, std::vector<cv::Mat>& _bg, cv::Mat& _fgmask);
+    static void applyCmp(const cv::Mat& _image, std::vector<cv::Mat>& _bg, cv::Mat& _fgmask, const params& _params);
     void applyCmpOld(const cv::Mat& _image, std::vector<cv::Mat>& _bg, cv::Mat& _fgmask);
+
+    static void applyJoin(const cv::Mat& image, 
+		cv::Mat& fgmask, 
+		const cv::Rect & rect, 
+		std::vector<cv::Mat> & bgImgs,
+		cv::Mat & fgMaskSplit,
+		const params& _params);
 };
