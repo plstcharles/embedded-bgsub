@@ -37,7 +37,7 @@ int main(int argc, const char** argv) {
 
     int camNum = parser.get<int>(0);
     //cap.open(camNum);
-    cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-182310.mp4");
+    cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-184734.mp4");
     if (!cap.isOpened())
     {
         help(argv);
