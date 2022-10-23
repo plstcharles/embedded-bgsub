@@ -5,9 +5,9 @@ add_library(embedded_bgsub_api STATIC)
 target_sources(
     embedded_bgsub_api
         PRIVATE
-            "src/BackgroundSubtractorViBe.cpp" "src/VibeBGS.cpp" "include/VibeBGSUtils.hpp" "include/vibeUtils.hpp"
+            "src/VibeBGS.cpp" "include/VibeBGSUtils.hpp"
         PUBLIC
-            "include/BackgroundSubtractorViBe.hpp" "include/VibeBGS.hpp"
+            "include/VibeBGS.hpp"
 )
 
 target_include_directories(

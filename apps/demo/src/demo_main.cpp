@@ -36,7 +36,8 @@ int main(int argc, const char** argv) {
     }
 
     int camNum = parser.get<int>(0);
-    cap.open(camNum);
+    //cap.open(camNum);
+    cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-182310.mp4");
     if (!cap.isOpened())
     {
         help(argv);
@@ -63,7 +64,8 @@ int main(int argc, const char** argv) {
         return -1;
     }
 
-    vibeBGS.initialize(frame);
+    //vibeBGS.initialize(frame);
+    vibeBGS.initializeParallel(frame, 8);
     cv::Mat vibeMask(frame.size(), CV_8UC1);
 
     cv::imshow("ViBe Demo", frame);
@@ -77,7 +79,8 @@ int main(int argc, const char** argv) {
         }
 
         double startTime = getAbsoluteTime();
-        vibeBGS.apply(frame, vibeMask);
+        //vibeBGS.apply(frame, vibeMask);
+        vibeBGS.applyParallel(frame, vibeMask);
         double endTime = getAbsoluteTime();
         totalTime += endTime - startTime;
         ++numFrames;

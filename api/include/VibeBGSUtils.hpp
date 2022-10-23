@@ -12,30 +12,25 @@ namespace sky360 {
     // Todo: This should NOT update the properties manually
     struct ImgSize {
         ImgSize(const ImgSize& _imgSize)
-            : ImgSize(_imgSize.width, _imgSize.height, _imgSize.numBytesPerPixel) {
+            : ImgSize(_imgSize.width, _imgSize.height, _imgSize.numBytesPerPixel, _imgSize.originalPixelPos) {
         }
 
-        ImgSize(int _width, int _height, int _numBytesPerPixel) 
+        ImgSize(int _width, int _height, int _numBytesPerPixel, size_t _originalPixelPos = 0) 
             : width(_width), 
             height(_height),
             numBytesPerPixel(_numBytesPerPixel),
             numPixels(_width * _height),
-            size(_width * _height * _numBytesPerPixel) 
+            size(_width * _height * _numBytesPerPixel),
+            originalPixelPos{_originalPixelPos}
         {}
 
-        void set(int _width, int _height, int _numBytesPerPixel) {
-            width = _width;
-            height = _height;
-            numBytesPerPixel = _numBytesPerPixel;
-            numPixels = _width * _height;
-            size = _width * _height * _numBytesPerPixel;
-        }
+        const int width;
+        const int height;
+        const int numBytesPerPixel;
+        const int numPixels;
+        const size_t size;
 
-        int width;
-        int height;
-        int numBytesPerPixel;
-        int numPixels;
-        int size;
+        const size_t originalPixelPos;
     };
 
     struct Img {
@@ -51,13 +46,13 @@ namespace sky360 {
             }
         }
         
-        static std::shared_ptr<Img> create(const ImgSize& _imgSize, bool _clear = false) {
+        static std::unique_ptr<Img> create(const ImgSize& _imgSize, bool _clear = false) {
             auto data = new uchar[_imgSize.size];
             if (_clear) {
                 memset(data, 0, _imgSize.size);
             }
 
-            return std::make_shared<Img>(data, _imgSize, true);
+            return std::make_unique<Img>(data, _imgSize, true);
         }
 
         inline void clear() {
@@ -148,11 +143,10 @@ namespace sky360 {
             if (i == (_numSplits - 1)) {
                 h = _inputImg.size.height - y;
             }
-            _outputImages[i] = Img::create(ImgSize(_inputImg.size.width, h, _inputImg.size.numBytesPerPixel), false);
+            _outputImages[i] = Img::create(ImgSize(_inputImg.size.width, h, _inputImg.size.numBytesPerPixel, y * _inputImg.size.width), false);
             memcpy(_outputImages[i]->data, 
-                _inputImg.data + (y * _inputImg.size.width * _inputImg.size.numBytesPerPixel), 
-                h * _inputImg.size.width * _inputImg.size.numBytesPerPixel);
-            //inputImg(cv::Rect(0, y, m_oImgSize.width, h));
+                _inputImg.data + (_outputImages[i]->size.originalPixelPos * _inputImg.size.numBytesPerPixel), 
+                _outputImages[i]->size.size);
             y += h;
 	    }
     }
