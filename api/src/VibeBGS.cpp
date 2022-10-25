@@ -41,13 +41,14 @@ namespace sky360 {
     }
 
     void VibeBGS::initialize(const Img& _initImg, std::vector<std::unique_ptr<Img>>& _bgImgSamples) {
+        Pcg32 pcg32;
         int ySample, xSample;
         _bgImgSamples.resize(m_params.NBGSamples);
         for (size_t s = 0; s < m_params.NBGSamples; ++s) {
             _bgImgSamples[s] = Img::create(_initImg.size, false);
             for (int yOrig = 0; yOrig < _initImg.size.height; yOrig++) {
                 for (int xOrig = 0; xOrig < _initImg.size.width; xOrig++) {
-                    sky360::getSamplePosition_7x7_std2(Pcg32::fast(), xSample, ySample, xOrig, yOrig, _initImg.size);
+                    sky360::getSamplePosition_7x7_std2(pcg32.fast(), xSample, ySample, xOrig, yOrig, _initImg.size);
                     const size_t pixelPos = (yOrig * _initImg.size.width + xOrig) * _initImg.size.numBytesPerPixel;
                     const size_t samplePos = (ySample * _initImg.size.width + xSample) * _initImg.size.numBytesPerPixel;
                     _bgImgSamples[s]->data[pixelPos] = _initImg.data[samplePos];
@@ -115,6 +116,7 @@ namespace sky360 {
     }
 
     void VibeBGS::apply(const Img& image, std::vector<std::unique_ptr<Img>>& bgImg, Img& fgmask, const Params& _params) {
+        Pcg32 pcg32;
         fgmask.clear();
 
         for (int pixOffset{0}, colorPixOffset{0}; 
@@ -125,32 +127,49 @@ namespace sky360 {
 
             const uchar* const pixData{&image.data[colorPixOffset]};
 
-            while ((nGoodSamplesCount < _params.NRequiredBGSamples) 
-                    && (nSampleIdx < _params.NBGSamples)) {
+            while (nSampleIdx < _params.NBGSamples) {
                 const uchar* const bg{&bgImg[nSampleIdx]->data[colorPixOffset]};
                 if (L2dist3Squared(pixData, bg) < _params.NColorDistThresholdSquared) {
                     ++nGoodSamplesCount;
+                    if (nGoodSamplesCount >= _params.NRequiredBGSamples) {
+                        // if ((Pcg32::fast() % m_learningRate) == 0) {
+                        if ((pcg32.fast() & _params.ANDlearningRate) == 0) {
+                            uchar* const bgImgPixData{&bgImg[pcg32.fast() & _params.ANDlearningRate]->data[colorPixOffset]};
+                            bgImgPixData[0] = pixData[0];
+                            bgImgPixData[1] = pixData[1];
+                            bgImgPixData[2] = pixData[2];
+                        }
+                        if ((pcg32.fast() & _params.ANDlearningRate) == 0) {
+                            const int neighData{getNeighborPosition_3x3(pixOffset, image.size, pcg32)};
+                            uchar* const xyRandData{&bgImg[pcg32.fast() & _params.ANDlearningRate]->data[neighData]};
+                            xyRandData[0] = pixData[0];
+                            xyRandData[1] = pixData[1];
+                            xyRandData[2] = pixData[2];
+                        }
+                        break;
+                    }
                 }
                 ++nSampleIdx;
             }
             if (nGoodSamplesCount < _params.NRequiredBGSamples) {
                 fgmask.data[pixOffset] = UCHAR_MAX;
-            } else {
-                // if ((Pcg32::fast() % m_learningRate) == 0) {
-                if ((Pcg32::fast() & _params.ANDlearningRate) == 0) {
-                    uchar* const bgImgPixData{&bgImg[Pcg32::fast() & _params.ANDlearningRate]->data[colorPixOffset]};
-                    bgImgPixData[0] = pixData[0];
-                    bgImgPixData[1] = pixData[1];
-                    bgImgPixData[2] = pixData[2];
-                }
-                if ((Pcg32::fast() & _params.ANDlearningRate) == 0) {
-                    int neighData{getNeighborPosition_3x3(pixOffset, image.size)};
-                    uchar* const xyRandData{&bgImg[Pcg32::fast() & _params.ANDlearningRate]->data[neighData * 3]};
-                    xyRandData[0] = pixData[0];
-                    xyRandData[1] = pixData[1];
-                    xyRandData[2] = pixData[2];
-                }
-            }
+            } 
+            // else {
+            //     // if ((Pcg32::fast() % m_learningRate) == 0) {
+            //     if ((Pcg32::fast() & _params.ANDlearningRate) == 0) {
+            //         uchar* const bgImgPixData{&bgImg[Pcg32::fast() & _params.ANDlearningRate]->data[colorPixOffset]};
+            //         bgImgPixData[0] = pixData[0];
+            //         bgImgPixData[1] = pixData[1];
+            //         bgImgPixData[2] = pixData[2];
+            //     }
+            //     if ((Pcg32::fast() & _params.ANDlearningRate) == 0) {
+            //         int neighData{getNeighborPosition_3x3(pixOffset, image.size)};
+            //         uchar* const xyRandData{&bgImg[Pcg32::fast() & _params.ANDlearningRate]->data[neighData * 3]};
+            //         xyRandData[0] = pixData[0];
+            //         xyRandData[1] = pixData[1];
+            //         xyRandData[2] = pixData[2];
+            //     }
+            // }
         }
     }
 }
