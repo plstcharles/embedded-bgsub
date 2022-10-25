@@ -48,7 +48,7 @@ namespace sky360 {
             _bgImgSamples[s] = Img::create(_initImg.size, false);
             for (int yOrig = 0; yOrig < _initImg.size.height; yOrig++) {
                 for (int xOrig = 0; xOrig < _initImg.size.width; xOrig++) {
-                    sky360::getSamplePosition_7x7_std2(pcg32.fast(), xSample, ySample, xOrig, yOrig, _initImg.size);
+                    getSamplePosition_7x7_std2(pcg32.fast(), xSample, ySample, xOrig, yOrig, _initImg.size);
                     const size_t pixelPos = (yOrig * _initImg.size.width + xOrig) * _initImg.size.numBytesPerPixel;
                     const size_t samplePos = (ySample * _initImg.size.width + xSample) * _initImg.size.numBytesPerPixel;
                     _bgImgSamples[s]->data[pixelPos] = _initImg.data[samplePos];
@@ -64,7 +64,7 @@ namespace sky360 {
     }
 
     void VibeBGS::apply(const cv::Mat& _image, cv::Mat& _fgmask) {
-        Img applyImg(_image.data, sky360::ImgSize(_image.size().width, _image.size().height, 3));
+        Img applyImg(_image.data, ImgSize(_image.size().width, _image.size().height, 3));
         Img maskImg(_fgmask.data, ImgSize(_fgmask.size().width, _fgmask.size().height, 1));
         apply(applyImg, m_bgImgSamples, maskImg, m_params);
     }
@@ -76,7 +76,9 @@ namespace sky360 {
             m_processSeq.end(),
             [&](int np)
             {
-                //std::cout << "np: " << np << ", pos: " << m_bgImgSamplesParallel[np][0]->size.originalPixelPos << std::endl;
+                // std::cout << "np: " << np << ", pos: " << m_bgImgSamplesParallel[np][0]->size.originalPixelPos 
+                //         << ", size: " << m_bgImgSamplesParallel[np][0]->size.width << ", "
+                //         << m_bgImgSamplesParallel[np][0]->size.height << std::endl;
                 Img imgSplit(_inputImg.data + (m_bgImgSamplesParallel[np][0]->size.originalPixelPos * 3), 
                             ImgSize(m_bgImgSamplesParallel[np][0]->size.width, m_bgImgSamplesParallel[np][0]->size.height, _inputImg.size.numBytesPerPixel));
                 Img maskPartial(_fgmask.data + m_bgImgSamplesParallel[np][0]->size.originalPixelPos, 
@@ -110,7 +112,7 @@ namespace sky360 {
     }
 
     void VibeBGS::applyParallel(const cv::Mat& _image, cv::Mat& _fgmask) {
-        Img applyImg(_image.data, sky360::ImgSize(_image.size().width, _image.size().height, 3));
+        Img applyImg(_image.data, ImgSize(_image.size().width, _image.size().height, 3));
         Img maskImg(_fgmask.data, ImgSize(_fgmask.size().width, _fgmask.size().height, 1));
         applyParallel(applyImg, maskImg);
     }
