@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 
 #include <opencv2/videoio.hpp>
 #include <opencv2/highgui.hpp>
@@ -13,18 +14,19 @@ int main(int argc, const char** argv) {
     bgslibrary::algorithms::WeightedMovingVariance wmv;
     sky360::VibeBGS vibeBGS;
 
+    if (argc < 2) {
+        std::cout << "Need one parameter as camera number" << std::endl;
+        return -1;
+    }
+
     double freq = initFrequency();
 
-    cv::CommandLineParser parser(argc, argv, keys);
-
-    int camNum = parser.get<int>(0);
+    int camNum = std::stoi(argv[1]);
     cap.open(camNum);
     //cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-184734.mp4");
     if (!cap.isOpened())
     {
         std::cout << "***Could not initialize capturing...***\n";
-        std::cout << "Current parameter's value: \n";
-        parser.printMessage();
         return -1;
     }
 
