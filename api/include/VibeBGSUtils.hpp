@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pcg32.hpp"
+#include <iostream>
 
 #include <array>
 #include <memory>
@@ -71,6 +72,10 @@ namespace sky360 {
         return (r0 * r0) + (r1 * r1) + (r2 * r2);
     }
 
+    static inline size_t L1dist(const uchar* const a, const uchar* const b) {
+        return std::abs((*(char*)a) - (*(char*)b));
+    }
+
     /// returns the neighbor location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
 	static inline int getNeighborPosition_3x3(const int pix, const ImgSize& oImageSize, Pcg32& pgc32) {
         typedef std::array<int, 2> Nb;
@@ -82,7 +87,7 @@ namespace sky360 {
 		const size_t r{pgc32.fast() & 0x7};
         int nNeighborCoord_X{std::max(std::min((pix % oImageSize.width) + s_anNeighborPattern[r][0], oImageSize.width - 1), 0)};
         int nNeighborCoord_Y{std::max(std::min((pix / oImageSize.width) + s_anNeighborPattern[r][1], oImageSize.height - 1), 0)};
-        return (nNeighborCoord_Y * oImageSize.width + nNeighborCoord_X) * 3;
+        return (nNeighborCoord_Y * oImageSize.width + nNeighborCoord_X);
 	}
 
 	/// returns pixel coordinates clamped to the given image & border size
@@ -118,9 +123,9 @@ namespace sky360 {
 
 	/// returns the sampling location for the specified random index & original pixel location; also guards against out-of-bounds values via image/border size check
 	inline void getSamplePosition_7x7_std2(const int nRandIdx, 
-        int& nSampleCoord_X, int& nSampleCoord_Y,
-		const int nOrigCoord_X, const int nOrigCoord_Y,
-		const ImgSize& oImageSize) {
+                                        int& nSampleCoord_X, int& nSampleCoord_Y,
+                                        const int nOrigCoord_X, const int nOrigCoord_Y,
+                                        const ImgSize& oImageSize) {
 		// based on 'floor(fspecial('gaussian',7,2)*512)'
 		static const int s_nSamplesInitPatternTot = 512;
 		static const std::array<std::array<int, 7>, 7> s_anSamplesInitPattern = {
@@ -144,6 +149,7 @@ namespace sky360 {
                 h = _inputImg.size.height - y;
             }
             _outputImages[i] = Img::create(ImgSize(_inputImg.size.width, h, _inputImg.size.numBytesPerPixel, y * _inputImg.size.width), false);
+
             memcpy(_outputImages[i]->data, 
                 _inputImg.data + (_outputImages[i]->size.originalPixelPos * _inputImg.size.numBytesPerPixel), 
                 _outputImages[i]->size.size);

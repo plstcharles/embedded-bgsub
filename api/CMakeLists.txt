@@ -5,9 +5,9 @@ add_library(embedded_bgsub_api STATIC)
 target_sources(
     embedded_bgsub_api
         PRIVATE
-            "src/VibeBGS.cpp" "include/VibeBGSUtils.hpp"
+            "src/VibeBGS.cpp" "include/VibeBGSUtils.hpp" "src/WeightedMovingVariance.cpp"
         PUBLIC
-            "include/VibeBGS.hpp"
+            "include/VibeBGS.hpp" "include/WeightedMovingVariance.hpp"
 )
 
 target_include_directories(
